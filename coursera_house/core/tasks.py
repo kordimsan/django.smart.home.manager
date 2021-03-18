@@ -7,7 +7,7 @@ import requests
 from celery import task
 from django.conf import settings
 from django.core.mail import EmailMessage
-
+from django.http import HttpResponse
 from .models import Setting
 
 url = settings.SMART_HOME_API_URL
@@ -20,7 +20,13 @@ def append_if_not_in(lst,itm):
 
 @task()
 def smart_home_manager():
-    controller_data = requests.get(url, headers=headers).json()
+    try:
+        controller_data = requests.get(url, headers=headers).json()
+        if controller_data['status'] != 'ok':
+            return HttpResponse('Some problems with API', status=502)
+    except:
+        return HttpResponse('Some problems with API', status=502)
+    
     json_data = {x['name']:x['value'] for x in controller_data.get('data')}
     controllers = json.loads(json.dumps(json_data), object_hook=lambda d: SimpleNamespace(**d))
     
@@ -111,5 +117,11 @@ def smart_home_manager():
     
 
     if payload['controllers']:
-        print(payload)
-        requests.post(url, headers=headers, json=payload)
+        try:
+            r = requests.post(url, headers=headers, json=payload)
+            if r.json()['status'] != 'ok':
+                return HttpResponse('Some problems with API', status=502)
+        except:
+            return HttpResponse('Some problems with API', status=502)
+
+        
